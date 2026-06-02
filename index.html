@@ -539,6 +539,7 @@ function updateTypeFilter(){
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 function shelfMatches(shelf,q,tf){
+  if(!q&&!tf)return true;
   return shelf.zones.some(z=>z.types.some(t=>{
     const tm=!tf||t.name.toLowerCase().includes(tf.toLowerCase());
     return t.items.some(i=>(!q||i.name.toLowerCase().includes(q.toLowerCase()))&&tm);
