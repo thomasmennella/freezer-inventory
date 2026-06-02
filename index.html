@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Freezer Inventory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,500;1,300&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f6f4f0;--surface:#fff;--surface2:#f0ede8;--border:#e0dbd2;--border2:#c8c2b8;
+  --text:#1a1814;--text2:#5a5650;--text3:#9a948e;
+  --cold:#1e4a7a;--cold-light:#e4edf7;
+  --accent:#2d5a3d;--accent-light:#e8f2ec;
+  --warm:#6b3a2a;--danger:#8b1a1a;
+  --radius:8px;--radius-lg:14px;--tap:44px;
+}
+html,body{height:100%}
+body{font-family:'Fraunces',Georgia,serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-text-size-adjust:100%}
+
+/* LOCK */
+#lockScreen{position:fixed;inset:0;background:var(--cold);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;padding:2rem}
+#lockScreen h1{color:#fff;font-size:2rem;font-weight:300;margin-bottom:.5rem;text-align:center}
+#lockScreen p{color:rgba(255,255,255,.65);font-family:'DM Mono',monospace;font-size:.8rem;margin-bottom:2rem;text-align:center}
+.lock-box{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:var(--radius-lg);padding:2rem;width:100%;max-width:340px;display:flex;flex-direction:column;gap:1rem}
+#pwInput{width:100%;padding:.9rem 1rem;border-radius:var(--radius);border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;font-family:'DM Mono',monospace;font-size:1rem;outline:none;text-align:center;letter-spacing:.1em}
+#pwInput::placeholder{color:rgba(255,255,255,.45);letter-spacing:0}
+#pwInput:focus{border-color:rgba(255,255,255,.7)}
+#pwBtn{width:100%;padding:.9rem;border-radius:var(--radius);border:none;background:#fff;color:var(--cold);font-family:'DM Mono',monospace;font-size:.9rem;font-weight:500;cursor:pointer}
+#pwErr{color:#ffaaaa;font-family:'DM Mono',monospace;font-size:.78rem;text-align:center;display:none}
+
+/* APP */
+#app{display:none;flex-direction:column;min-height:100vh}
+header{background:var(--cold);color:#fff;padding:1.25rem 1rem 1rem;position:relative;overflow:hidden}
+header::before{content:'❄';position:absolute;right:-10px;top:-20px;font-size:140px;opacity:.06;line-height:1;pointer-events:none}
+header h1{font-size:1.5rem;font-weight:300;letter-spacing:-.02em;margin-bottom:.2rem}
+header p{font-size:.75rem;opacity:.65;font-family:'DM Mono',monospace}
+
+.sync-bar{background:var(--cold-light);border-bottom:1px solid #b5cfe8;padding:.5rem 1rem;display:flex;align-items:center;gap:.6rem;font-family:'DM Mono',monospace;font-size:.72rem;color:var(--cold)}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:#aaa;flex-shrink:0;transition:background .3s}
+.sync-dot.ok{background:#2d8a4e}
+.sync-dot.syncing{background:#e8a020;animation:pulse 1s infinite}
+.sync-dot.error{background:#c0392b}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.sync-btn{margin-left:auto;padding:.35rem .8rem;border-radius:var(--radius);border:1px solid #b5cfe8;background:#fff;color:var(--cold);font-family:'DM Mono',monospace;font-size:.72rem;cursor:pointer;min-height:var(--tap);display:flex;align-items:center;gap:.35rem}
+.sync-btn:active{background:var(--cold);color:#fff}
+
+.toolbar{background:var(--surface);border-bottom:1px solid var(--border);padding:.75rem 1rem;display:flex;flex-direction:column;gap:.6rem;position:sticky;top:0;z-index:100}
+.toolbar-row{display:flex;gap:.5rem;align-items:center}
+.search-wrap{position:relative;flex:1}
+.search-wrap i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:14px;pointer-events:none}
+#search{width:100%;padding:.65rem .75rem .65rem 2.2rem;border:1px solid var(--border);border-radius:var(--radius);font-family:'DM Mono',monospace;font-size:.85rem;background:var(--bg);color:var(--text);outline:none;min-height:var(--tap)}
+#search:focus{border-color:var(--cold)}
+.type-filter{padding:.65rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-family:'DM Mono',monospace;font-size:.8rem;background:var(--bg);color:var(--text);outline:none;cursor:pointer;flex:1;min-height:var(--tap)}
+.btn{padding:.65rem 1rem;border-radius:var(--radius);font-family:'DM Mono',monospace;font-size:.8rem;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);white-space:nowrap;display:flex;align-items:center;justify-content:center;gap:.4rem;min-height:var(--tap);flex:1}
+.btn.primary{background:var(--cold);color:#fff;border-color:var(--cold)}
+.btn:active{opacity:.8}
+
+main{padding:1rem;display:flex;flex-direction:column;gap:1rem;flex:1}
+
+.shelf-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.shelf-header{padding:.75rem 1rem;display:flex;align-items:center;gap:.6rem;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;min-height:var(--tap)}
+.shelf-header:active{background:var(--surface2)}
+.shelf-icon{width:34px;height:34px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.shelf-label{font-size:.9rem;font-weight:500;flex:1;line-height:1.3}
+.shelf-actions{display:flex;gap:.25rem;flex-shrink:0}
+.icon-btn{width:var(--tap);height:var(--tap);border:none;background:none;cursor:pointer;color:var(--text3);font-size:13px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius);flex-shrink:0}
+.icon-btn:active{background:var(--surface2);color:var(--cold)}
+.shelf-toggle{font-size:11px;color:var(--text3);transition:transform .2s;padding:0 4px}
+.shelf-toggle.open{transform:rotate(180deg)}
+.shelf-body{padding:.875rem 1rem;display:flex;flex-direction:column;gap:.75rem}
+.shelf-body.collapsed{display:none}
+
+.zone{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.75rem}
+.zone-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;gap:.5rem}
+.zone-label-text{font-size:.68rem;font-family:'DM Mono',monospace;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;flex:1;border:none;background:none;outline:none;padding:0;min-width:0;min-height:36px}
+.zone-label-text:focus{color:var(--cold)}
+
+.type-group{margin-bottom:.6rem}
+.type-header{display:flex;align-items:center;border-bottom:1px solid var(--border);padding-bottom:.25rem;margin-bottom:.35rem;gap:.25rem}
+.type-name-edit{background:none;border:none;font-family:'DM Mono',monospace;font-size:.7rem;color:var(--text2);flex:1;outline:none;padding:0;min-width:0;min-height:36px}
+.type-name-edit:focus{color:var(--cold)}
+.mini-btn{width:32px;height:32px;border:none;background:none;cursor:pointer;color:var(--text3);font-size:11px;display:flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0}
+.mini-btn:active{background:var(--surface2);color:var(--danger)}
+
+.item-row{display:flex;align-items:center;gap:.4rem;padding:.3rem .2rem;border-radius:6px}
+.qty-wrap{display:flex;align-items:center;gap:.3rem;flex-shrink:0}
+.qty-btn{width:32px;height:32px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text2);flex-shrink:0}
+.qty-btn:active{background:var(--cold);color:#fff;border-color:var(--cold)}
+.qty{font-size:.8rem;font-family:'DM Mono',monospace;color:var(--text3);min-width:18px;text-align:center}
+.item-name-input{font-family:'Fraunces',serif;font-size:.88rem;font-weight:300;color:var(--text);background:none;border:none;outline:none;flex:1;min-width:0}
+.item-name-input:focus{background:var(--surface);border-radius:4px;padding:0 4px}
+.open-tag{display:inline-block;font-size:.6rem;font-family:'DM Mono',monospace;background:#fff3cd;color:#7a6000;border-radius:3px;padding:1px 5px;white-space:nowrap;flex-shrink:0}
+.item-actions{display:flex;gap:2px;flex-shrink:0}
+.act-btn{width:32px;height:32px;border:none;background:none;cursor:pointer;font-size:12px;flex-shrink:0;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--text3)}
+.act-btn:active{background:var(--surface2)}
+.act-btn.move{color:var(--cold)}
+.act-btn.del:active{color:var(--danger)}
+
+.add-item-row{display:flex;gap:.4rem;margin-top:.4rem}
+.add-item-input{flex:1;font-family:'Fraunces',serif;font-size:.85rem;padding:.55rem .65rem;border:1px dashed var(--border2);border-radius:6px;background:transparent;color:var(--text);outline:none;min-height:var(--tap)}
+.add-item-input:focus{border-color:var(--cold);border-style:solid}
+.add-item-btn{padding:.55rem .9rem;border-radius:6px;border:1px solid var(--cold);background:var(--cold-light);color:var(--cold);font-size:.8rem;cursor:pointer;font-family:'DM Mono',monospace;min-height:var(--tap);white-space:nowrap}
+.add-item-btn:active{background:var(--cold);color:#fff}
+.add-type-btn{width:100%;margin-top:.4rem;padding:.6rem;border:1px dashed var(--border2);border-radius:6px;background:none;color:var(--text3);font-size:.72rem;font-family:'DM Mono',monospace;cursor:pointer;text-align:left;min-height:var(--tap);display:flex;align-items:center;gap:.4rem}
+.add-type-btn:active{color:var(--cold)}
+.add-zone-btn{width:100%;padding:.6rem;border:1px dashed var(--border2);border-radius:var(--radius);background:none;color:var(--text3);font-size:.75rem;font-family:'DM Mono',monospace;cursor:pointer;min-height:var(--tap);display:flex;align-items:center;gap:.4rem}
+.add-zone-btn:active{color:var(--cold);border-color:var(--cold)}
+
+/* MOVE MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:flex-end;justify-content:center;padding:1rem}
+.modal{background:var(--surface);border-radius:var(--radius-lg) var(--radius-lg) var(--radius) var(--radius);width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-header h2{font-size:1rem;font-weight:500}
+.modal-close{width:var(--tap);height:var(--tap);border:none;background:none;cursor:pointer;font-size:18px;color:var(--text3);display:flex;align-items:center;justify-content:center;border-radius:var(--radius)}
+.modal-close:active{background:var(--surface2)}
+.modal-body{padding:1rem 1.25rem;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:.75rem}
+.modal-label{font-size:.75rem;font-family:'DM Mono',monospace;color:var(--text3);margin-bottom:.25rem}
+.modal-select{width:100%;padding:.75rem;border:1px solid var(--border);border-radius:var(--radius);font-family:'DM Mono',monospace;font-size:.85rem;background:var(--bg);color:var(--text);outline:none;min-height:var(--tap)}
+.modal-select:focus{border-color:var(--cold)}
+.modal-footer{padding:1rem 1.25rem;border-top:1px solid var(--border);display:flex;gap:.75rem;flex-shrink:0}
+.modal-btn{flex:1;padding:.75rem;border-radius:var(--radius);font-family:'DM Mono',monospace;font-size:.85rem;cursor:pointer;min-height:var(--tap);border:1px solid var(--border);background:var(--surface);color:var(--text)}
+.modal-btn.confirm{background:var(--cold);color:#fff;border-color:var(--cold)}
+.modal-btn:active{opacity:.8}
+
+.no-results{text-align:center;padding:3rem 1rem;color:var(--text3);font-family:'DM Mono',monospace;font-size:.8rem}
+.no-results i{display:block;font-size:2rem;margin-bottom:.75rem}
+.loading{text-align:center;padding:4rem 1rem;color:var(--text3);font-family:'DM Mono',monospace;font-size:.85rem}
+.loading i{display:block;font-size:2rem;margin-bottom:1rem;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+footer{text-align:center;padding:1.5rem 1rem;color:var(--text3);font-family:'DM Mono',monospace;font-size:.7rem}
+</style>
+</head>
+<body>
+
+<div id="lockScreen">
+  <h1>❄ Freezer Inventory</h1>
+  <p>Mennella Family · Enter password to continue</p>
+  <div class="lock-box">
+    <input type="password" id="pwInput" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')checkPw()">
+    <button id="pwBtn" onclick="checkPw()">Unlock</button>
+    <div id="pwErr">Incorrect password — try again</div>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <h1>❄ Freezer Inventory</h1>
+    <p>Mennella Family · Changes sync across all devices</p>
+  </header>
+  <div class="sync-bar">
+    <div class="sync-dot" id="syncDot"></div>
+    <span id="syncStatus">Connecting…</span>
+    <button class="sync-btn" onclick="syncNow()"><i class="fa fa-rotate-right"></i> Sync</button>
+  </div>
+  <div class="toolbar">
+    <div class="toolbar-row">
+      <div class="search-wrap">
+        <i class="fa fa-search"></i>
+        <input type="search" id="search" placeholder="Search items…" oninput="render()" autocomplete="off">
+      </div>
+    </div>
+    <div class="toolbar-row">
+      <select class="type-filter" id="typeFilter" onchange="render()">
+        <option value="">All types</option>
+      </select>
+      <button class="btn primary" onclick="addShelf()"><i class="fa fa-plus"></i> Add shelf</button>
+      <button class="btn" onclick="exportData()"><i class="fa fa-download"></i> Export</button>
+    </div>
+  </div>
+  <main id="main"><div class="loading"><i class="fa fa-snowflake"></i>Loading…</div></main>
+  <footer>Auto-saved · Last saved: <span id="lastSaved">—</span></footer>
+</div>
+
+<!-- MOVE MODAL -->
+<div class="modal-overlay" id="moveModal" style="display:none" onclick="if(event.target===this)closeMoveModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Move item</h2>
+      <button class="modal-close" onclick="closeMoveModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <div class="modal-label">Moving: <strong id="moveItemName"></strong></div>
+      </div>
+      <div>
+        <div class="modal-label">Destination shelf</div>
+        <select class="modal-select" id="moveShelf" onchange="updateMoveZones()"></select>
+      </div>
+      <div>
+        <div class="modal-label">Destination zone</div>
+        <select class="modal-select" id="moveZone" onchange="updateMoveTypes()"></select>
+      </div>
+      <div>
+        <div class="modal-label">Destination category</div>
+        <select class="modal-select" id="moveType"></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn" onclick="closeMoveModal()">Cancel</button>
+      <button class="modal-btn confirm" onclick="confirmMove()">Move item</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PASSWORD = 'GirlPowerFreeze';
+const GITHUB_TOKEN = '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';
+const GIST_ID = '3b8d18a7acd2a2ec5d5d2d389f543b61';
+const GIST_FILE = 'freezer.json';
+
+function checkPw(){
+  if(document.getElementById('pwInput').value===PASSWORD){
+    localStorage.setItem('freezer_auth','1');
+    document.getElementById('lockScreen').style.display='none';
+    document.getElementById('app').style.display='flex';
+    loadFromGist();
+  } else {
+    document.getElementById('pwErr').style.display='block';
+    document.getElementById('pwInput').value='';
+    document.getElementById('pwInput').focus();
+  }
+}
+
+if(localStorage.getItem('freezer_auth')==='1'){
+  document.getElementById('lockScreen').style.display='none';
+  document.getElementById('app').style.display='flex';
+}
+
+const DEFAULT_DATA = {shelves:[
+  {id:"s1",label:"Top shelf — left",color:"cold",icon:"fa-temperature-low",zones:[
+    {id:"z1a",label:"Left section",types:[
+      {id:"t1a1",name:"Sausages & hot dogs",items:[
+        {id:"i1",name:"Hot dogs",qty:2,open:false},
+        {id:"i2",name:"Breakfast sausages",qty:1,open:false},
+        {id:"i3",name:"Boneless brown sugar ham",qty:1,open:false}
+      ]},
+      {id:"t1a2",name:"Quick heat & snacks",items:[
+        {id:"i4",name:"Chicken burgers, caramelized onion (Costco)",qty:1,open:false},
+        {id:"i5",name:"Hash brown potatoes, diced",qty:1,open:false},
+        {id:"i6",name:"Mozzarella sticks",qty:1,open:false},
+        {id:"i7",name:"Crispy chicken strips (Tyson)",qty:1,open:false},
+        {id:"i8",name:"Pierogis",qty:2,open:false},
+        {id:"i9",name:"Chicken dumplings",qty:1,open:false},
+        {id:"i10",name:"Potstickers",qty:1,open:false},
+        {id:"i11",name:"Gluten-free potstickers",qty:1,open:false},
+        {id:"i12",name:"Gluten-free tater tots",qty:1,open:false}
+      ]}
+    ]}
+  ]},
+  {id:"s2",label:"Top shelf — middle",color:"cold",icon:"fa-temperature-low",zones:[
+    {id:"z2a",label:"Raw meats",types:[
+      {id:"t2a1",name:"Chicken",items:[
+        {id:"i13",name:"Chicken breasts, frozen",qty:1,open:false},
+        {id:"i14",name:"Chicken breast & tenderloin",qty:1,open:false},
+        {id:"i15",name:"Organic chicken tenderloins",qty:1,open:false},
+        {id:"i16",name:"Chicken tenderloins",qty:1,open:false},
+        {id:"i17",name:"Chicken thighs",qty:1,open:false},
+        {id:"i18",name:"Drumsticks",qty:2,open:false}
+      ]},
+      {id:"t2a2",name:"Beef & pork",items:[
+        {id:"i19",name:"Ground beef",qty:3,open:false},
+        {id:"i20",name:"Bacon",qty:1,open:false},
+        {id:"i21",name:"Ground turkey",qty:1,open:false}
+      ]}
+    ]}
+  ]},
+  {id:"s3",label:"Top shelf — right",color:"cold",icon:"fa-temperature-low",zones:[
+    {id:"z3a",label:"Pre-marinated chicken",types:[
+      {id:"t3a1",name:"Marinated chicken",items:[
+        {id:"i22",name:"Pre-marinated chicken (various)",qty:1,open:false},
+        {id:"i23",name:"Chicken fajitas (Purdue)",qty:1,open:false}
+      ]}
+    ]},
+    {id:"z3b",label:"Prepared & frozen meals",types:[
+      {id:"t3b1",name:"Frozen entrées",items:[
+        {id:"i24",name:"Frozen Indian food",qty:3,open:false},
+        {id:"i25",name:"Chicken Parmesan, premade",qty:1,open:false},
+        {id:"i26",name:"Frozen burrito",qty:1,open:false}
+      ]}
+    ]}
+  ]},
+  {id:"s4",label:"2nd shelf — left",color:"accent",icon:"fa-leaf",zones:[
+    {id:"z4a",label:"Plant-based / fake meat",types:[
+      {id:"t4a1",name:"Beyond / Impossible",items:[
+        {id:"i27",name:"Beyond beef steak tips",qty:1,open:false},
+        {id:"i28",name:"Impossible burger patties",qty:1,open:false},
+        {id:"i29",name:"Impossible chicken nuggets",qty:1,open:false},
+        {id:"i30",name:"Impossible savory sausage",qty:1,open:false},
+        {id:"i31",name:"Sweet barbecue riblets (vegan)",qty:1,open:false},
+        {id:"i32",name:"Vegetarian bacon strips",qty:1,open:false},
+        {id:"i33",name:"Vegan ground beef",qty:1,open:false}
+      ]}
+    ]}
+  ]},
+  {id:"s5",label:"2nd shelf — middle",color:"cold",icon:"fa-fish",zones:[
+    {id:"z5a",label:"Seafood",types:[
+      {id:"t5a1",name:"Fish & seafood",items:[
+        {id:"i34",name:"Salmon burgers",qty:1,open:false},
+        {id:"i35",name:"Sweet chili salmon",qty:1,open:false},
+        {id:"i36",name:"Seafood mix",qty:1,open:false},
+        {id:"i37",name:"Calamari",qty:1,open:false}
+      ]}
+    ]}
+  ]},
+  {id:"s6",label:"2nd shelf — right",color:"accent",icon:"fa-seedling",zones:[
+    {id:"z6a",label:"Frozen vegetables",types:[
+      {id:"t6a1",name:"Vegetables",items:[
+        {id:"i38",name:"Rustic root medley",qty:1,open:false},
+        {id:"i39",name:"Broccoli cauliflower mix",qty:1,open:false},
+        {id:"i40",name:"Cauliflower",qty:1,open:false},
+        {id:"i41",name:"Brussels sprouts",qty:1,open:false},
+        {id:"i42",name:"Sweet corn",qty:1,open:false},
+        {id:"i43",name:"Sweet corn (open)",qty:1,open:true},
+        {id:"i44",name:"Broccoli & cheese sauce",qty:2,open:false},
+        {id:"i45",name:"Onions & peppers",qty:1,open:false},
+        {id:"i46",name:"Southwest power blend",qty:1,open:false},
+        {id:"i47",name:"Cut green beans",qty:1,open:false},
+        {id:"i48",name:"Baby Vidalia onions",qty:1,open:true},
+        {id:"i49",name:"Broccoli florets",qty:1,open:true}
+      ]}
+    ]}
+  ]},
+  {id:"s7",label:"3rd shelf — left",color:"warm",icon:"fa-cheese",zones:[
+    {id:"z7a",label:"Cheese & breakfast",types:[
+      {id:"t7a1",name:"Cheese",items:[
+        {id:"i50",name:"Shredded Mexican cheese",qty:2,open:false},
+        {id:"i51",name:"Shredded Monterey Jack",qty:1,open:false},
+        {id:"i52",name:"Creamed mozzarella",qty:1,open:false},
+        {id:"i53",name:"Parmesan",qty:1,open:false},
+        {id:"i54",name:"Pepper Jack slices",qty:1,open:false}
+      ]},
+      {id:"t7a2",name:"Breakfast",items:[
+        {id:"i55",name:"Frozen omelettes",qty:1,open:false}
+      ]}
+    ]}
+  ]},
+  {id:"s8",label:"3rd shelf — middle",color:"warm",icon:"fa-bowl-food",zones:[
+    {id:"z8a",label:"Pasta",types:[
+      {id:"t8a1",name:"Pasta",items:[
+        {id:"i56",name:"Mozzarella ravioli",qty:2,open:false},
+        {id:"i57",name:"Regular ravioli",qty:1,open:false},
+        {id:"i58",name:"Fettuccine",qty:1,open:false},
+        {id:"i59",name:"Gluten-free tortellini",qty:4,open:false}
+      ]}
+    ]},
+    {id:"z8b",label:"Regular bread",types:[
+      {id:"t8b1",name:"Bread & sauce",items:[
+        {id:"i60",name:"White bread",qty:2,open:false},
+        {id:"i61",name:"Bolognese sauce, homemade",qty:1,open:false}
+      ]}
+    ]}
+  ]},
+  {id:"s9",label:"3rd shelf — right",color:"warm",icon:"fa-bread-slice",zones:[
+    {id:"z9a",label:"Gluten-free breads",types:[
+      {id:"t9a1",name:"GF bread",items:[
+        {id:"i62",name:"Gluten-free bread rolls (Rolly Bites)",qty:1,open:true},
+        {id:"i63",name:"Gluten-free baguettes",qty:1,open:false},
+        {id:"i64",name:"Gluten-free cinnamon rolls",qty:1,open:false}
+      ]}
+    ]}
+  ]},
+  {id:"s10",label:"Bottom shelf — sweets & ice cream",color:"pink",icon:"fa-ice-cream",zones:[
+    {id:"z10a",label:"Ice cream",types:[
+      {id:"t10a1",name:"Ice cream & bars",items:[
+        {id:"i65",name:"Cherry Garcia — Ben & Jerry's",qty:1,open:false},
+        {id:"i66",name:"S'mores — Ben & Jerry's",qty:1,open:false},
+        {id:"i67",name:"Salted caramel brownie — Ben & Jerry's",qty:1,open:false},
+        {id:"i68",name:"Mini Ben & Jerry's",qty:2,open:false},
+        {id:"i69",name:"Oreo ice cream cake",qty:1,open:false},
+        {id:"i70",name:"Strawberry ice cream bars",qty:2,open:false},
+        {id:"i71",name:"Kulfi (Indian ice cream)",qty:1,open:false}
+      ]}
+    ]},
+    {id:"z10b",label:"Fruit & pastry",types:[
+      {id:"t10b1",name:"Fruit",items:[
+        {id:"i72",name:"Blueberries & frozen cherries",qty:1,open:false},
+        {id:"i73",name:"Frozen sliced peaches",qty:1,open:false},
+        {id:"i74",name:"Mango pulp",qty:1,open:false}
+      ]},
+      {id:"t10b2",name:"Pastry & baked goods",items:[
+        {id:"i75",name:"Gluten-free apple pie",qty:1,open:false},
+        {id:"i76",name:"Gluten-free lemon poppy loaf",qty:1,open:false},
+        {id:"i77",name:"Gluten-free marble loaf",qty:1,open:false},
+        {id:"i78",name:"Cream cheese strawberry toaster strudel",qty:1,open:false},
+        {id:"i79",name:"Puff pastry sheets",qty:1,open:false},
+        {id:"i80",name:"Pierogis",qty:1,open:false}
+      ]},
+      {id:"t10b3",name:"Cream cheese",items:[
+        {id:"i81",name:"Frozen cream cheese (assorted)",qty:1,open:false},
+        {id:"i82",name:"Rosen strawberry cream cheese",qty:1,open:false}
+      ]}
+    ]}
+  ]},
+  {id:"s11",label:"Freezer door — top shelf",color:"door",icon:"fa-door-open",zones:[
+    {id:"z11a",label:"Door top",types:[
+      {id:"t11a1",name:"Door top items",items:[
+        {id:"i83",name:"Frozen butter & flaxseed",qty:1,open:false},
+        {id:"i84",name:"Frozen herbs",qty:1,open:false},
+        {id:"i85",name:"Gluten-free Sweet Lorenz cookies",qty:1,open:false},
+        {id:"i86",name:"Gluten-free strawberry cake",qty:1,open:false}
+      ]}
+    ]}
+  ]},
+  {id:"s12",label:"Freezer door — 2nd shelf",color:"door",icon:"fa-door-open",zones:[
+    {id:"z12a",label:"Door 2nd shelf",types:[
+      {id:"t12a1",name:"Ice packs",items:[
+        {id:"i87",name:"Ice packs (all)",qty:1,open:false}
+      ]},
+      {id:"t12a2",name:"Loose frozen items",items:[
+        {id:"i88",name:"Frozen ginger",qty:1,open:false},
+        {id:"i89",name:"Frozen hot peppers",qty:1,open:false},
+        {id:"i90",name:"Frozen poblano peppers",qty:1,open:false}
+      ]}
+    ]}
+  ]},
+  {id:"s13",label:"Freezer door — bottom shelf",color:"door",icon:"fa-door-open",zones:[
+    {id:"z13a",label:"Door bottom",types:[
+      {id:"t13a1",name:"Bread",items:[
+        {id:"i93",name:"White bread loaf",qty:1,open:false},
+        {id:"i94",name:"Kaiser rolls (bag of 4)",qty:1,open:false}
+      ]},
+      {id:"t13a2",name:"Other",items:[
+        {id:"i95",name:"Frozen banana",qty:1,open:false}
+      ]}
+    ]}
+  ]}
+]};
+
+const COLOR_MAP={
+  cold:{bg:"#e4edf7",text:"#1e4a7a",border:"#b5cfe8"},
+  accent:{bg:"#e8f2ec",text:"#2d5a3d",border:"#a8d4b8"},
+  warm:{bg:"#f5ece4",text:"#6b3a2a",border:"#e0c4b0"},
+  pink:{bg:"#fce8f0",text:"#8b2a5a",border:"#e8b0cc"},
+  door:{bg:"#f0ede8",text:"#5a5650",border:"#d0ccc8"}
+};
+
+let data=JSON.parse(JSON.stringify(DEFAULT_DATA));
+let collapsed={};
+let saveTimer=null;
+let moveCtx=null; // {sid,zid,tid,iid}
+
+function setSyncStatus(state,msg){
+  document.getElementById('syncDot').className='sync-dot '+state;
+  document.getElementById('syncStatus').textContent=msg;
+}
+
+async function loadFromGist(){
+  setSyncStatus('syncing','Loading…');
+  try{
+    const res=await fetch(`https://api.github.com/gists/${GIST_ID}`,{
+      headers:{
+        'Authorization':`Bearer ${GITHUB_TOKEN}`,
+        'Accept':'application/vnd.github+json',
+        'X-GitHub-Api-Version':'2022-11-28'
+      }
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const gist=await res.json();
+    const content=gist.files[GIST_FILE]?.content;
+    if(content&&content.trim()!=='{}'&&content.trim()!==''){
+      const parsed=JSON.parse(content);
+      if(parsed.shelves){data=parsed;localStorage.setItem('freezer_data',JSON.stringify(data));}
+      else await saveToGist();
+    } else { await saveToGist(); }
+    setSyncStatus('ok','Synced · '+new Date().toLocaleTimeString());
+  } catch(e){
+    setSyncStatus('error','Sync error: '+e.message+' — using local data');
+    const local=localStorage.getItem('freezer_data');
+    if(local){try{data=JSON.parse(local);}catch(_){}}
+  }
+  render();
+}
+
+async function saveToGist(){
+  setSyncStatus('syncing','Saving…');
+  try{
+    const res=await fetch(`https://api.github.com/gists/${GIST_ID}`,{
+      method:'PATCH',
+      headers:{
+        'Authorization':`Bearer ${GITHUB_TOKEN}`,
+        'Accept':'application/vnd.github+json',
+        'X-GitHub-Api-Version':'2022-11-28',
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify({files:{[GIST_FILE]:{content:JSON.stringify(data,null,2)}}})
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    localStorage.setItem('freezer_data',JSON.stringify(data));
+    const now=new Date().toLocaleTimeString();
+    document.getElementById('lastSaved').textContent=now;
+    setSyncStatus('ok','Saved · '+now);
+  } catch(e){
+    setSyncStatus('error','Save failed ('+e.message+') — stored locally');
+    localStorage.setItem('freezer_data',JSON.stringify(data));
+  }
+}
+
+function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>saveToGist(),1500);}
+function syncNow(){loadFromGist();}
+function uid(){return Math.random().toString(36).slice(2,8);}
+
+function allTypes(){
+  const t=new Set();
+  data.shelves.forEach(s=>s.zones.forEach(z=>z.types.forEach(tp=>t.add(tp.name))));
+  return [...t].sort();
+}
+function updateTypeFilter(){
+  const sel=document.getElementById('typeFilter');
+  const val=sel.value;
+  sel.innerHTML='<option value="">All types</option>'+allTypes().map(t=>`<option value="${esc(t)}"${val===t?' selected':''}>${esc(t)}</option>`).join('');
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function shelfMatches(shelf,q,tf){
+  return shelf.zones.some(z=>z.types.some(t=>{
+    const tm=!tf||t.name.toLowerCase().includes(tf.toLowerCase());
+    return t.items.some(i=>(!q||i.name.toLowerCase().includes(q.toLowerCase()))&&tm);
+  }));
+}
+
+function render(){
+  updateTypeFilter();
+  const q=document.getElementById('search').value.trim();
+  const tf=document.getElementById('typeFilter').value;
+  const main=document.getElementById('main');
+  let html='',any=false;
+
+  data.shelves.forEach(shelf=>{
+    if(!shelfMatches(shelf,q,tf))return;
+    any=true;
+    const c=COLOR_MAP[shelf.color]||COLOR_MAP.cold;
+    const open=!collapsed[shelf.id];
+    html+=`<div class="shelf-section">
+      <div class="shelf-header" onclick="toggleShelf('${shelf.id}')">
+        <div class="shelf-icon" style="background:${c.bg};color:${c.text}"><i class="fa ${shelf.icon}" aria-hidden="true"></i></div>
+        <div class="shelf-label">${esc(shelf.label)}</div>
+        <div class="shelf-actions" onclick="event.stopPropagation()">
+          <button class="icon-btn" onclick="editShelfLabel('${shelf.id}')"><i class="fa fa-pen"></i></button>
+          <button class="icon-btn" onclick="deleteShelf('${shelf.id}')"><i class="fa fa-trash"></i></button>
+        </div>
+        <i class="fa fa-chevron-down shelf-toggle ${open?'open':''}" aria-hidden="true"></i>
+      </div>
+      <div class="shelf-body ${open?'':'collapsed'}">`;
+
+    shelf.zones.forEach(zone=>{
+      html+=`<div class="zone">
+        <div class="zone-header">
+          <input class="zone-label-text" value="${esc(zone.label)}" onchange="editZoneLabel('${shelf.id}','${zone.id}',this.value)">
+          <button class="mini-btn" onclick="deleteZone('${shelf.id}','${zone.id}')"><i class="fa fa-trash"></i></button>
+        </div>`;
+
+      zone.types.forEach(type=>{
+        const tm=!tf||type.name.toLowerCase().includes(tf.toLowerCase());
+        const vis=type.items.filter(i=>(!q||i.name.toLowerCase().includes(q.toLowerCase()))&&tm);
+        if(!tm&&vis.length===0)return;
+        html+=`<div class="type-group">
+          <div class="type-header" style="border-color:${c.border}">
+            <input class="type-name-edit" value="${esc(type.name)}" onchange="editTypeName('${shelf.id}','${zone.id}','${type.id}',this.value)">
+            <button class="mini-btn" onclick="deleteType('${shelf.id}','${zone.id}','${type.id}')"><i class="fa fa-trash"></i></button>
+          </div>`;
+        vis.forEach(item=>{
+          html+=`<div class="item-row">
+            <div class="qty-wrap">
+              <button class="qty-btn" onclick="changeQty('${shelf.id}','${zone.id}','${type.id}','${item.id}',-1)">−</button>
+              <span class="qty">${item.qty}</span>
+              <button class="qty-btn" onclick="changeQty('${shelf.id}','${zone.id}','${type.id}','${item.id}',1)">+</button>
+            </div>
+            <input class="item-name-input" value="${esc(item.name)}" onchange="editItemName('${shelf.id}','${zone.id}','${type.id}','${item.id}',this.value)">
+            ${item.open?'<span class="open-tag">open</span>':''}
+            <div class="item-actions">
+              <button class="act-btn" onclick="toggleOpen('${shelf.id}','${zone.id}','${type.id}','${item.id}')" title="${item.open?'Mark closed':'Mark open'}">${item.open?'📦':'🔓'}</button>
+              <button class="act-btn move" onclick="openMoveModal('${shelf.id}','${zone.id}','${type.id}','${item.id}')" title="Move to another location"><i class="fa fa-arrow-right-arrow-left"></i></button>
+              <button class="act-btn del" onclick="deleteItem('${shelf.id}','${zone.id}','${type.id}','${item.id}')"><i class="fa fa-times"></i></button>
+            </div>
+          </div>`;
+        });
+        html+=`<div class="add-item-row">
+          <input class="add-item-input" placeholder="+ add item…" id="add-${type.id}" onkeydown="if(event.key==='Enter')addItem('${shelf.id}','${zone.id}','${type.id}')">
+          <button class="add-item-btn" onclick="addItem('${shelf.id}','${zone.id}','${type.id}')">Add</button>
+        </div></div>`;
+      });
+
+      html+=`<button class="add-type-btn" onclick="addType('${shelf.id}','${zone.id}')"><i class="fa fa-tag"></i> Add category</button></div>`;
+    });
+
+    html+=`<button class="add-zone-btn" onclick="addZone('${shelf.id}')"><i class="fa fa-plus"></i> Add zone</button></div></div>`;
+  });
+
+  if(!any)html=`<div class="no-results"><i class="fa fa-magnifying-glass"></i>No items match your search</div>`;
+  main.innerHTML=html;
+}
+
+/* ── MOVE MODAL ── */
+function openMoveModal(sid,zid,tid,iid){
+  moveCtx={sid,zid,tid,iid};
+  const item=findItem(sid,zid,tid,iid);
+  document.getElementById('moveItemName').textContent=item.name;
+  const shelfSel=document.getElementById('moveShelf');
+  shelfSel.innerHTML=data.shelves.map(s=>`<option value="${s.id}"${s.id===sid?' selected':''}>${esc(s.label)}</option>`).join('');
+  updateMoveZones();
+  document.getElementById('moveModal').style.display='flex';
+}
+function updateMoveZones(){
+  const sid=document.getElementById('moveShelf').value;
+  const shelf=data.shelves.find(s=>s.id===sid);
+  const zoneSel=document.getElementById('moveZone');
+  zoneSel.innerHTML=shelf.zones.map(z=>`<option value="${z.id}">${esc(z.label)}</option>`).join('');
+  updateMoveTypes();
+}
+function updateMoveTypes(){
+  const sid=document.getElementById('moveShelf').value;
+  const zid=document.getElementById('moveZone').value;
+  const shelf=data.shelves.find(s=>s.id===sid);
+  const zone=shelf.zones.find(z=>z.id===zid);
+  const typeSel=document.getElementById('moveType');
+  typeSel.innerHTML=zone.types.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  if(zone.types.length===0) typeSel.innerHTML='<option value="__new__">+ Create new category</option>';
+}
+function confirmMove(){
+  const{sid,zid,tid,iid}=moveCtx;
+  const destSid=document.getElementById('moveShelf').value;
+  const destZid=document.getElementById('moveZone').value;
+  let destTid=document.getElementById('moveType').value;
+
+  if(destSid===sid&&destZid===zid&&destTid===tid){
+    closeMoveModal();return;
+  }
+
+  const srcType=findType(sid,zid,tid);
+  const item=srcType.items.find(i=>i.id===iid);
+
+  if(destTid==='__new__'){
+    const name=prompt('New category name:','');
+    if(!name){return;}
+    const newType={id:'t'+uid(),name:name.trim(),items:[]};
+    data.shelves.find(s=>s.id===destSid).zones.find(z=>z.id===destZid).types.push(newType);
+    destTid=newType.id;
+  }
+
+  const destType=findType(destSid,destZid,destTid);
+  destType.items.push({...item});
+  srcType.items=srcType.items.filter(i=>i.id!==iid);
+
+  closeMoveModal();
+  scheduleSave();
+  render();
+}
+function closeMoveModal(){
+  document.getElementById('moveModal').style.display='none';
+  moveCtx=null;
+}
+
+/* ── HELPERS ── */
+function findType(sid,zid,tid){
+  return data.shelves.find(s=>s.id===sid).zones.find(z=>z.id===zid).types.find(t=>t.id===tid);
+}
+function findItem(sid,zid,tid,iid){
+  return findType(sid,zid,tid).items.find(i=>i.id===iid);
+}
+
+function toggleShelf(id){collapsed[id]=!collapsed[id];render();}
+function editShelfLabel(sid){const s=data.shelves.find(x=>x.id===sid);const v=prompt('Shelf label:',s.label);if(v!=null&&v.trim()){s.label=v.trim();scheduleSave();render();}}
+function deleteShelf(sid){if(!confirm('Delete entire shelf?'))return;data.shelves=data.shelves.filter(x=>x.id!==sid);scheduleSave();render();}
+function editZoneLabel(sid,zid,val){findType(sid,zid,data.shelves.find(s=>s.id===sid).zones.find(z=>z.id===zid).types[0]?.id||'');const z=data.shelves.find(s=>s.id===sid).zones.find(z=>z.id===zid);z.label=val.trim()||z.label;scheduleSave();}
+function deleteZone(sid,zid){if(!confirm('Remove this zone?'))return;const s=data.shelves.find(x=>x.id===sid);s.zones=s.zones.filter(x=>x.id!==zid);scheduleSave();render();}
+function addZone(sid){const l=prompt('Zone label:','New zone');if(!l)return;data.shelves.find(x=>x.id===sid).zones.push({id:'z'+uid(),label:l.trim(),types:[]});scheduleSave();render();}
+function editTypeName(sid,zid,tid,val){const t=findType(sid,zid,tid);t.name=val.trim()||t.name;scheduleSave();updateTypeFilter();}
+function deleteType(sid,zid,tid){if(!confirm('Remove this category?'))return;const z=data.shelves.find(s=>s.id===sid).zones.find(z=>z.id===zid);z.types=z.types.filter(t=>t.id!==tid);scheduleSave();render();}
+function addType(sid,zid){const n=prompt('Category name:','New category');if(!n)return;data.shelves.find(s=>s.id===sid).zones.find(z=>z.id===zid).types.push({id:'t'+uid(),name:n.trim(),items:[]});scheduleSave();render();}
+function addItem(sid,zid,tid){const inp=document.getElementById('add-'+tid);const n=inp?inp.value.trim():'';if(!n)return;findType(sid,zid,tid).items.push({id:'i'+uid(),name:n,qty:1,open:false});scheduleSave();render();}
+function editItemName(sid,zid,tid,iid,val){const item=findItem(sid,zid,tid,iid);item.name=val.trim()||item.name;scheduleSave();}
+function changeQty(sid,zid,tid,iid,d){const t=findType(sid,zid,tid);const item=t.items.find(i=>i.id===iid);item.qty=Math.max(0,item.qty+d);if(item.qty===0&&confirm('Qty is 0 — remove item?')){t.items=t.items.filter(i=>i.id!==iid);}scheduleSave();render();}
+function deleteItem(sid,zid,tid,iid){const t=findType(sid,zid,tid);t.items=t.items.filter(i=>i.id!==iid);scheduleSave();render();}
+function toggleOpen(sid,zid,tid,iid){const item=findItem(sid,zid,tid,iid);item.open=!item.open;scheduleSave();render();}
+function addShelf(){const l=prompt('Shelf label:','New shelf');if(!l)return;const c=prompt('Color (cold/accent/warm/pink/door):','cold')||'cold';data.shelves.push({id:'s'+uid(),label:l.trim(),color:c,icon:'fa-snowflake',zones:[]});scheduleSave();render();}
+function exportData(){const b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='freezer_inventory.json';a.click();}
+
+if(localStorage.getItem('freezer_auth')==='1'){loadFromGist();}
+setInterval(()=>{if(!saveTimer)loadFromGist();},5*60*1000);
+</script>
+</body>
+</html>
